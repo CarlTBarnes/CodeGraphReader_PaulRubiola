@@ -82,7 +82,7 @@ SQLITE_OPEN_READONLY EQUATE(1)
 
 MaxCol               EQUATE(16)        ! widest result the grid will show
 MaxRows              EQUATE(50000)     ! safety cap on rows fetched
-ProgVersion          EQUATE('CodeGraphReader  v1.0.2  -  2026-08-12')
+ProgVersion          EQUATE('CodeGraphReader  v1.0.3  -  2026-08-12')
 
 !------------------------------------------------------------------------------
 ! Handles and working data
@@ -184,12 +184,8 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
   OPEN(AppWindow)
   ?AnalysisPick{PROP:Selected} = 1
 
-  !--- convenience: auto-open the RccEst10 graph if it is sitting there -------
-  IF EXISTS('C:\C12Apps\RccEst10\RccEst10.codegraph.db')
-    OpenDatabase('C:\C12Apps\RccEst10\RccEst10.codegraph.db')
-  ELSE
-    StatusMsg = 'Click Open Database to load a .codegraph.db file.'
-  END
+  !--- convenience: auto-open a .codegraph.db sitting in the working folder ----
+  DO AutoOpenLocal
   DISPLAY
 
   ACCEPT
@@ -238,6 +234,23 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
   IF hDb THEN sqlite3_close(hDb).
   CLOSE(AppWindow)
   RETURN
+
+!------------------------------------------------------------------------------
+! Convenience: if any *.codegraph.db sits in the program's working directory,
+! open the first one automatically.  No hard-coded paths.
+!------------------------------------------------------------------------------
+AutoOpenLocal ROUTINE
+  DATA
+DirQ   QUEUE(FILE:Queue),PRE(DQ)
+       END
+  CODE
+  DIRECTORY(DirQ, '*.codegraph.db', ff_:NORMAL)
+  IF RECORDS(DirQ)
+    GET(DirQ, 1)
+    OpenDatabase(CLIP(DQ:Name))
+  ELSE
+    StatusMsg = 'Click Open Database to load a .codegraph.db file.'
+  END
 
 !------------------------------------------------------------------------------
 ! Build the SQL for the chosen analysis and run it.

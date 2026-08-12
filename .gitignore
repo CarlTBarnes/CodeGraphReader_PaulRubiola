@@ -7,6 +7,11 @@
 *.dcd
 *.sln.cache
 *.suo
+obj/
+bin/
+
+# Clarion runtime DLL copied in by the build (ships with Clarion, don't redistribute)
+ClaRUN.dll
 
 # CodeGraph databases (generated snapshots; can be large)
 *.codegraph.db

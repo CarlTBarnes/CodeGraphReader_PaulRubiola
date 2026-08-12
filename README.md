@@ -59,10 +59,9 @@ Then run `CodeGraphReader.exe`. Keep `sqlite3.dll` next to the EXE.
 
 ## Notes
 
-- On launch the tool tries to auto-open a convenience path
-  (`C:\C12Apps\RccEst10\RccEst10.codegraph.db`). If that file isn't present it
-  simply prompts you to **Open Database…** — harmless, and easy to change in the
-  source if you want a different default.
+- On launch, if any `*.codegraph.db` file is present in the program's working
+  directory the tool opens the first one automatically; otherwise it prompts you
+  to **Open Database…**. No paths are hard-coded.
 - The header of `CodeGraphReader.clw` documents several hard-won ClaRUN
   12.0.0.14000 gotchas baked into the code (CSTRING null-termination, the `@sN`
   255-character picture cap, and displaying a variable in a `STRING` control).
