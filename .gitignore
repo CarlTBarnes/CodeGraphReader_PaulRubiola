@@ -1,0 +1,21 @@
+# Clarion / MSBuild build artifacts
+*.exe
+*.map
+*.pdb
+*.obj
+*.res
+*.dcd
+*.sln.cache
+*.suo
+
+# CodeGraph databases (generated snapshots; can be large)
+*.codegraph.db
+*.codegraph.db-shm
+*.codegraph.db-wal
+
+# Editor / OS cruft
+*~
+Thumbs.db
+.vs/
+
+# NOTE: sqlite3.dll and sqlite3.lib are intentionally committed (dependencies).

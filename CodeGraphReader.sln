@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+# Clarion 2.1.0.2447
+Project("{12B76EC0-1D7B-4FA7-A7D0-C524288B48A1}") = "CodeGraphReader", "CodeGraphReader.cwproj", "{2F9B4C1A-7D3E-4A6B-9C8F-1E5D2A7B3C6D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2F9B4C1A-7D3E-4A6B-9C8F-1E5D2A7B3C6D}.Debug|Win32.Build.0 = Debug|Win32
+		{2F9B4C1A-7D3E-4A6B-9C8F-1E5D2A7B3C6D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2F9B4C1A-7D3E-4A6B-9C8F-1E5D2A7B3C6D}.Release|Win32.Build.0 = Release|Win32
+		{2F9B4C1A-7D3E-4A6B-9C8F-1E5D2A7B3C6D}.Release|Win32.ActiveCfg = Release|Win32
+	EndGlobalSection
+EndGlobal
