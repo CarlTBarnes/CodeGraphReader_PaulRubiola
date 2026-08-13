@@ -10,11 +10,14 @@
 ! What it does:
 !   - Opens any .codegraph.db (SQLite 3) read-only.
 !   - Analyses tab : canned queries (all procs, all classes, class hierarchy,
-!                    orphaned procedures, Who-calls-X, What-X-calls).
+!                    orphaned procedures, Who-calls-X, What-X-calls, and all
+!                    relationships in readable name form).
 !   - Browse tab   : dump any table in the database.
 !   - SQL tab      : run any free-form SELECT.
 !   Results land in one shared grid whose columns/headers are rebuilt from the
-!   query at run time, so every query type shares the same viewer.
+!   query at run time, so every query type shares the same viewer.  Double-click
+!   a result row to open its file at that line in VS Code; double-click a column
+!   header to sort (toggles asc/desc).  Columns stay resizable.
 !
 !------------------------------------------------------------------------------
 ! DEPENDENCIES - read before you build
@@ -38,10 +41,31 @@
 !     STRINGs AFTER the sheet/drop-lists avoids it - visual position is still
 !     controlled by AT(), so the DbPath string still paints at the top.
 !
-!   * A display STRING must use a PICTURE, e.g. STRING(@s260),USE(DbPath) - a
+!   * A display STRING must use a PICTURE, e.g. STRING(@s255),USE(DbPath) - a
 !     STRING('') literal shows that empty constant forever and NEVER renders its
 !     USE variable, no matter how many times you DISPLAY.  That (not the order)
 !     is why the Database path and status line first came up blank.
+!
+!------------------------------------------------------------------------------
+! VERSION HISTORY
+!------------------------------------------------------------------------------
+!   v1.0.0 - First on-screen-versioned build.  Display STRING controls fixed to
+!            use a picture (@sN) instead of a '' literal, so the Database path
+!            and status line render their USE variables.
+!   v1.0.1 - Result-grid columns re-bind to their queue fields after a runtime
+!            PROP:Format change (PROPLIST:FieldNo), so cells paint; widened the
+!            on-screen version string.
+!   v1.0.2 - PtrToStr NUL-terminates its CSTRING (ended run-on garbage in
+!            headers / table list / error text); every grid picture capped at
+!            @s255 (was @s300, over the 255 limit -> blank cells).
+!   v1.0.3 - Dropped the hard-coded auto-open path; AutoOpenLocal opens the
+!            first *.codegraph.db found in the working directory.
+!   v1.0.4 - Double-click a data row opens the file at its line in VS Code;
+!            double-click a column header sorts it (toggles asc/desc, arrow
+!            shown) while columns stay resizable; new "All relationships
+!            (readable)" analysis JOINs from_id/to_id to symbol names; status
+!            bar flags when columns overflow the view; window background changed
+!            from gray to light blue.
 !==============================================================================
 
   PROGRAM
@@ -57,6 +81,8 @@ RunQuery            PROCEDURE(STRING pSql),LONG,PROC
 LoadTableList       PROCEDURE()
 PtrToStr            PROCEDURE(LONG pAddr),STRING
 SafeHdr             PROCEDURE(STRING pIn),STRING
+GetCell             PROCEDURE(LONG pCol),STRING
+OpenFileAtLine      PROCEDURE(STRING pFile, LONG pLine)
 
     !--- SQLite 3 C API (undecorated cdecl exports) --------------------------
     MODULE('sqlite3.dll')
@@ -82,7 +108,7 @@ SQLITE_OPEN_READONLY EQUATE(1)
 
 MaxCol               EQUATE(16)        ! widest result the grid will show
 MaxRows              EQUATE(50000)     ! safety cap on rows fetched
-ProgVersion          EQUATE('CodeGraphReader  v1.0.3  -  2026-08-12')
+ProgVersion          EQUATE('CodeGraphReader  v1.0.4  -  2026-08-12')
 
 !------------------------------------------------------------------------------
 ! Handles and working data
@@ -96,6 +122,11 @@ DbPick               CSTRING(261)      ! FILEDIALOG target
 ParamTxt             STRING(60)        ! symbol name for Who/What-calls
 SqlText              STRING(2048)      ! free-form SQL entry
 StatusMsg            STRING(200)
+
+ColName              STRING(64),DIM(MaxCol)  ! raw column name per result column
+CurCols              LONG                    ! # columns in the current result
+SortCol              LONG                    ! last-sorted column (0 = none)
+SortDesc             BYTE                    ! 0 = ascending, 1 = descending
 
 !------------------------------------------------------------------------------
 ! Result grid queue - sixteen explicit scalar columns (see header note).
@@ -130,7 +161,7 @@ TableQ               QUEUE,PRE(TBQ)
 TName                  STRING(64)
                      END
 
-AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
+AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),COLOR(0FFF0E0h),SYSTEM,MAX,RESIZE, |
             FONT('Segoe UI',9),CENTER,ICON(ICON:Application)
        PROMPT('Database:'),AT(8,8),USE(?DbLabel)
        BUTTON('&Open Database...'),AT(556,5,78,14),USE(?OpenBtn)
@@ -158,6 +189,7 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
          END
        END
        LIST,AT(4,104,632,272),USE(?Grid),FROM(ResultQ),VSCROLL,HVSCROLL, |
+            ALRT(MouseLeft2),COLOR(COLOR:White), |
             FORMAT('200L(2)|M~Result~@s255@')
        !--- display STRINGs declared AFTER the drop-lists (see header note) ---
        STRING(@s255),AT(52,8,500,10),USE(DbPath),FONT(,8)
@@ -177,6 +209,7 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
   AQ:AName = 'Orphaned procedures';        ADD(AnalysisQ)
   AQ:AName = 'Who calls (symbol)';         ADD(AnalysisQ)
   AQ:AName = 'What (symbol) calls';        ADD(AnalysisQ)
+  AQ:AName = 'All relationships (readable)'; ADD(AnalysisQ)
 
   SqlText = 'SELECT name, type, file_path, line_number' & |
             '<13,10>FROM symbols<13,10>WHERE type = ''procedure''<13,10>LIMIT 100'
@@ -189,6 +222,20 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),GRAY,SYSTEM,MAX,RESIZE, |
   DISPLAY
 
   ACCEPT
+    CASE FIELD()
+    OF ?Grid
+      CASE EVENT()
+      OF EVENT:AlertKey
+        IF KEYCODE() = MouseLeft2                 ! MouseLeft2 = left double-click
+          IF ?Grid{PROPLIST:MouseDownRow} = 0
+            DO SortByHeader                        ! double-click a header -> sort
+          ELSE
+            DO OpenSelectedRow                     ! double-click a data row -> open
+          END
+        END
+      END
+    END
+
     CASE ACCEPTED()
 
     OF ?OpenBtn
@@ -300,6 +347,11 @@ sql   STRING(1000)
           Quote & 'calls' & Quote & ' AND r.from_id IN ' & |
           '(SELECT id FROM symbols WHERE name = ' & Quote & CLIP(ParamTxt) & |
           Quote & ') ORDER BY s.name'
+  OF 7
+    sql = 'SELECT sf.name AS from_name, r.type, st.name AS to_name, ' & |
+          'r.file_path, r.line_number FROM relationships r ' & |
+          'JOIN symbols sf ON r.from_id = sf.id ' & |
+          'JOIN symbols st ON r.to_id = st.id ORDER BY sf.name'
   ELSE
     EXIT
   END
@@ -307,6 +359,87 @@ sql   STRING(1000)
   SqlText = sql          ! echo the built query onto the SQL tab (transparency)
   DISPLAY
   RunQuery(sql)
+
+!------------------------------------------------------------------------------
+! Double-click handler: find the file_path / line_number columns in the current
+! result (by name) and open that source location in VS Code.
+!------------------------------------------------------------------------------
+OpenSelectedRow ROUTINE
+  DATA
+fpath  STRING(300)
+lineno LONG
+i      LONG
+  CODE
+  IF ~CHOICE(?Grid) THEN EXIT.
+  GET(ResultQ, CHOICE(?Grid))
+  IF ERRORCODE() THEN EXIT.
+  fpath = '';  lineno = 0
+  LOOP i = 1 TO CurCols
+    CASE LOWER(CLIP(ColName[i]))
+    OF 'file_path'   ; fpath  = GetCell(i)
+    OF 'line_number' ; lineno = GetCell(i)
+    END
+  END
+  IF ~CLIP(fpath)
+    StatusMsg = 'No file_path column in this result - nothing to open.'
+    DISPLAY
+    EXIT
+  END
+  OpenFileAtLine(CLIP(fpath), lineno)
+
+!------------------------------------------------------------------------------
+! Header-click handler: sort by the clicked column, toggling asc/desc when the
+! same header is clicked again.
+!------------------------------------------------------------------------------
+SortByHeader ROUTINE
+  DATA
+col  LONG
+  CODE
+  col = ?Grid{PROPLIST:MouseDownField}
+  IF col < 1 OR col > CurCols THEN EXIT.
+  IF col = SortCol
+    SortDesc = 1 - SortDesc                 ! same column -> toggle direction
+  ELSE
+    SortCol = col;  SortDesc = 0
+  END
+  DO ApplySort
+
+!------------------------------------------------------------------------------
+! Re-sort ResultQ by SortCol (lexical - all cells are strings) and repaint,
+! marking the sorted column header with an ^ (asc) or v (desc) arrow.
+!------------------------------------------------------------------------------
+ApplySort ROUTINE
+  DATA
+j  LONG
+  CODE
+  IF ~SortCol OR ~RECORDS(ResultQ) THEN EXIT.
+  IF SortDesc
+    EXECUTE SortCol
+      SORT(ResultQ,-RQ:Cell1);  SORT(ResultQ,-RQ:Cell2);  SORT(ResultQ,-RQ:Cell3)
+      SORT(ResultQ,-RQ:Cell4);  SORT(ResultQ,-RQ:Cell5);  SORT(ResultQ,-RQ:Cell6)
+      SORT(ResultQ,-RQ:Cell7);  SORT(ResultQ,-RQ:Cell8);  SORT(ResultQ,-RQ:Cell9)
+      SORT(ResultQ,-RQ:Cell10); SORT(ResultQ,-RQ:Cell11); SORT(ResultQ,-RQ:Cell12)
+      SORT(ResultQ,-RQ:Cell13); SORT(ResultQ,-RQ:Cell14); SORT(ResultQ,-RQ:Cell15)
+      SORT(ResultQ,-RQ:Cell16)
+    END
+  ELSE
+    EXECUTE SortCol
+      SORT(ResultQ,RQ:Cell1);  SORT(ResultQ,RQ:Cell2);  SORT(ResultQ,RQ:Cell3)
+      SORT(ResultQ,RQ:Cell4);  SORT(ResultQ,RQ:Cell5);  SORT(ResultQ,RQ:Cell6)
+      SORT(ResultQ,RQ:Cell7);  SORT(ResultQ,RQ:Cell8);  SORT(ResultQ,RQ:Cell9)
+      SORT(ResultQ,RQ:Cell10); SORT(ResultQ,RQ:Cell11); SORT(ResultQ,RQ:Cell12)
+      SORT(ResultQ,RQ:Cell13); SORT(ResultQ,RQ:Cell14); SORT(ResultQ,RQ:Cell15)
+      SORT(ResultQ,RQ:Cell16)
+    END
+  END
+  LOOP j = 1 TO CurCols                       ! arrow on the sorted column header
+    ?Grid{PROPLIST:Header, j} = SafeHdr(ColName[j]) & |
+        CHOOSE(j = SortCol, CHOOSE(SortDesc + 1, ' ^', ' v'), '')
+  END
+  DISPLAY(?Grid)
+  StatusMsg = 'Sorted by ' & CLIP(ColName[SortCol]) & |
+              CHOOSE(SortDesc + 1, ' (ascending)', ' (descending)')
+  DISPLAY
 
 !==============================================================================
 ! Open a database read-only.  Closes any previously open one on success.
@@ -403,6 +536,7 @@ Cval   STRING(300)
   IF rc <> SQLITE_OK OR ~hStmt
     StatusMsg = 'SQL error: ' & PtrToStr(sqlite3_errmsg(hDb))
     ?Grid{PROP:Format} = '200L(2)|M~Result~@s255@'
+    CurCols = 0;  SortCol = 0
     DISPLAY(?Grid)
     DISPLAY
     RETURN 0
@@ -414,9 +548,10 @@ Cval   STRING(300)
   !--- rebuild grid columns + headers from the statement --------------------
   fmt = ''
   LOOP i = 1 TO nCols
-    fmt = CLIP(fmt) & '250L(2)|M~' & |
-          SafeHdr(PtrToStr(sqlite3_column_name(hStmt, i-1))) & '~@s255@'
+    ColName[i] = PtrToStr(sqlite3_column_name(hStmt, i-1))
+    fmt = CLIP(fmt) & '250L(2)|M~' & SafeHdr(ColName[i]) & '~@s255@'
   END
+  CurCols = nCols;  SortCol = 0;  SortDesc = 0
   IF ~fmt THEN fmt = '250L(2)|M~(no columns)~@s255@'.
   ?Grid{PROP:Format} = fmt
 
@@ -466,6 +601,9 @@ Cval   STRING(300)
     StatusMsg = 'Showing first ' & nRows & ' row(s) (capped at ' & MaxRows & '), ' & nCols & ' col(s).'
   ELSE
     StatusMsg = nRows & ' row(s), ' & nCols & ' col(s).'
+  END
+  IF nCols * 250 > ?Grid{PROP:Width}
+    StatusMsg = CLIP(StatusMsg) & '   ->  scroll right for all ' & nCols & ' columns'
   END
   DISPLAY
   RETURN nRows
@@ -520,3 +658,40 @@ c    LONG
   END
   IF ~CLIP(Res) THEN RETURN 'col'.
   RETURN CLIP(Res)
+
+!==============================================================================
+! Return the value of the pCol-th cell (1..16) of the current ResultQ record.
+!==============================================================================
+GetCell PROCEDURE(LONG pCol)
+
+  CODE
+  EXECUTE pCol
+    RETURN(RQ:Cell1);  RETURN(RQ:Cell2);  RETURN(RQ:Cell3);  RETURN(RQ:Cell4)
+    RETURN(RQ:Cell5);  RETURN(RQ:Cell6);  RETURN(RQ:Cell7);  RETURN(RQ:Cell8)
+    RETURN(RQ:Cell9);  RETURN(RQ:Cell10); RETURN(RQ:Cell11); RETURN(RQ:Cell12)
+    RETURN(RQ:Cell13); RETURN(RQ:Cell14); RETURN(RQ:Cell15); RETURN(RQ:Cell16)
+  END
+  RETURN ''
+
+!==============================================================================
+! Open a source file at a given line in VS Code:  code -g "file:line".
+! Tries the `code` CLI (PATH); if absent, falls back to the standard per-user
+! Code.exe (cmd expands %LOCALAPPDATA%) so a stale PATH still works.
+!==============================================================================
+OpenFileAtLine PROCEDURE(STRING pFile, LONG pLine)
+
+fl   STRING(400)
+cmd  STRING(900)
+
+  CODE
+  IF ~EXISTS(CLIP(pFile))
+    StatusMsg = 'File not found: ' & CLIP(pFile)
+    DISPLAY
+    RETURN
+  END
+  fl = CLIP(pFile) & ':' & pLine
+  cmd = 'cmd /c code -g "' & CLIP(fl) & '" 2>nul || ' & |
+        '"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe" -g "' & CLIP(fl) & '"'
+  RUN(cmd)
+  StatusMsg = 'Opening ' & CLIP(pFile) & ' at line ' & pLine & ' in VS Code...'
+  DISPLAY

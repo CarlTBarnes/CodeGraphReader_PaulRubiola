@@ -16,9 +16,21 @@ Three tabs feed one shared result grid whose columns and headers rebuild
 themselves from each query at run time:
 
 - **Analyses** — canned queries: all procedures & functions, all classes, class
-  hierarchy, orphaned procedures, *Who calls X*, and *What X calls*.
+  hierarchy, orphaned procedures, *Who calls X*, *What X calls*, and **all
+  relationships (readable)** — the raw `from_id`/`to_id` numbers JOINed back to
+  their symbol names.
 - **Browse** — dump any table in the database.
 - **SQL** — run any free-form read-only `SELECT`.
+
+**Grid navigation:**
+
+- **Double-click a result row** → opens that row's `file_path` at its
+  `line_number` in **VS Code** (`code -g "file:line"`). Works on any result that
+  carries `file_path`/`line_number` columns.
+- **Double-click a column header** → sorts by that column; double-click again
+  toggles ascending/descending (the sorted header shows a `^` / `v` arrow).
+- **Drag a column border** → resize. The status bar flags when there are more
+  columns than fit in the current view.
 
 ## Requirements
 
@@ -28,6 +40,9 @@ themselves from each query at run time:
   - `sqlite3.lib` is a Clarion import library generated from that DLL with
     Clarion's **LibMaker** (`LibMaker.exe sqlite3.dll`). The source links it via
     `PRAGMA('link(sqlite3.lib)')`.
+- *(optional)* **VS Code** — on `PATH` (its `code` command) or installed per-user
+  — enables the double-click-to-open-source feature. Without it the tool still
+  browses and queries fine; only the jump-to-source is unavailable.
 
 ## Build
 
@@ -47,6 +62,8 @@ Then run `CodeGraphReader.exe`. Keep `sqlite3.dll` next to the EXE.
 1. Click **Open Database…** and pick any `*.codegraph.db` file.
 2. Use the **Analyses**, **Browse**, or **SQL** tab to query it.
 3. Results land in the grid; the status bar reports row/column counts.
+4. Double-click a row to open its source in VS Code; double-click a column
+   header to sort; drag a column border to resize.
 
 ## The `.codegraph.db` schema (reference)
 
@@ -62,9 +79,10 @@ Then run `CodeGraphReader.exe`. Keep `sqlite3.dll` next to the EXE.
 - On launch, if any `*.codegraph.db` file is present in the program's working
   directory the tool opens the first one automatically; otherwise it prompts you
   to **Open Database…**. No paths are hard-coded.
-- The header of `CodeGraphReader.clw` documents several hard-won ClaRUN
-  12.0.0.14000 gotchas baked into the code (CSTRING null-termination, the `@sN`
-  255-character picture cap, and displaying a variable in a `STRING` control).
+- The header of `CodeGraphReader.clw` carries a full **VERSION HISTORY
+  (v1.0.0–v1.0.4)** and documents several hard-won ClaRUN 12.0.0.14000 gotchas
+  baked into the code (CSTRING null-termination, the `@sN` 255-character picture
+  cap, and displaying a variable in a `STRING` control).
 
 ## License
 
