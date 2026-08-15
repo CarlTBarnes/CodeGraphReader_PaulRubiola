@@ -292,6 +292,7 @@ DirQ   QUEUE(FILE:Queue),PRE(DQ)
   CODE
   DIRECTORY(DirQ, '*.codegraph.db', ff_:NORMAL)
   IF RECORDS(DirQ)
+    SORT(DirQ,-DQ:Date,-DQ:Time)        !Carl: Sort newest to the TOP so open that
     GET(DirQ, 1)
     OpenDatabase(CLIP(DQ:Name))
   ELSE
@@ -411,26 +412,8 @@ ApplySort ROUTINE
   DATA
 j  LONG
   CODE
-  IF ~SortCol OR ~RECORDS(ResultQ) THEN EXIT.
-  IF SortDesc
-    EXECUTE SortCol
-      SORT(ResultQ,-RQ:Cell1);  SORT(ResultQ,-RQ:Cell2);  SORT(ResultQ,-RQ:Cell3)
-      SORT(ResultQ,-RQ:Cell4);  SORT(ResultQ,-RQ:Cell5);  SORT(ResultQ,-RQ:Cell6)
-      SORT(ResultQ,-RQ:Cell7);  SORT(ResultQ,-RQ:Cell8);  SORT(ResultQ,-RQ:Cell9)
-      SORT(ResultQ,-RQ:Cell10); SORT(ResultQ,-RQ:Cell11); SORT(ResultQ,-RQ:Cell12)
-      SORT(ResultQ,-RQ:Cell13); SORT(ResultQ,-RQ:Cell14); SORT(ResultQ,-RQ:Cell15)
-      SORT(ResultQ,-RQ:Cell16)
-    END
-  ELSE
-    EXECUTE SortCol
-      SORT(ResultQ,RQ:Cell1);  SORT(ResultQ,RQ:Cell2);  SORT(ResultQ,RQ:Cell3)
-      SORT(ResultQ,RQ:Cell4);  SORT(ResultQ,RQ:Cell5);  SORT(ResultQ,RQ:Cell6)
-      SORT(ResultQ,RQ:Cell7);  SORT(ResultQ,RQ:Cell8);  SORT(ResultQ,RQ:Cell9)
-      SORT(ResultQ,RQ:Cell10); SORT(ResultQ,RQ:Cell11); SORT(ResultQ,RQ:Cell12)
-      SORT(ResultQ,RQ:Cell13); SORT(ResultQ,RQ:Cell14); SORT(ResultQ,RQ:Cell15)
-      SORT(ResultQ,RQ:Cell16)
-    END
-  END
+  IF ~SortCol OR ~RECORDS(ResultQ) THEN EXIT. 
+  SORT(ResultQ, CHOOSE(~SortDesc,'+','-') & WHO(ResultQ,SortCol) )    !Carl: Sort in 1 line
   LOOP j = 1 TO CurCols                       ! arrow on the sorted column header
     ?Grid{PROPLIST:Header, j} = SafeHdr(ColName[j]) & |
         CHOOSE(j = SortCol, CHOOSE(SortDesc + 1, ' ^', ' v'), '')
