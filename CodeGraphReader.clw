@@ -65,7 +65,10 @@
 !            shown) while columns stay resizable; new "All relationships
 !            (readable)" analysis JOINs from_id/to_id to symbol names; status
 !            bar flags when columns overflow the view; window background changed
-!            from gray to light blue.
+!            from gray to light blue.  
+!   v1.1.0   Carl Barnes work
+!            Reformat window some to allow LIST to be FULL so Resize shows more
+!            Columns size 125 was 250 too wide
 !==============================================================================
 
   PROGRAM
@@ -115,7 +118,7 @@ ProgVersion          EQUATE('CodeGraphReader  v1.0.4  -  2026-08-12')
 !------------------------------------------------------------------------------
 hDb                  LONG              ! open sqlite3* database handle
 hStmt                LONG              ! current sqlite3_stmt* handle
-Quote                STRING(1)         ! a single-quote char, for building SQL
+Quote                EQUATE('<39>') !was STRING(1)         ! a single-quote char, for building SQL
 
 DbPath               STRING(260)       ! path shown at the top of the window
 DbPick               CSTRING(261)      ! FILEDIALOG target
@@ -161,45 +164,41 @@ TableQ               QUEUE,PRE(TBQ)
 TName                  STRING(64)
                      END
 
-AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),COLOR(0FFF0E0h),SYSTEM,MAX,RESIZE, |
-            FONT('Segoe UI',9),CENTER,ICON(ICON:Application)
-       PROMPT('Database:'),AT(8,8),USE(?DbLabel)
-       BUTTON('&Open Database...'),AT(556,5,78,14),USE(?OpenBtn)
-       SHEET,AT(4,24,632,74),USE(?Sheet)
-         TAB('&Analyses')
-           PROMPT('Analysis:'),AT(10,42),USE(?AnalLabel)
-           LIST,AT(52,40,190,10),USE(?AnalysisPick),DROP(10),FROM(AnalysisQ), |
-                FORMAT('186L(2)@s40@')
-           PROMPT('Symbol (Who/What calls):'),AT(10,58),USE(?ParamLabel)
-           ENTRY(@s60),AT(110,56,132,12),USE(ParamTxt), |
-                TIP('Exact symbol name - only used by the Who/What calls analyses')
-           BUTTON('&Run Analysis'),AT(252,52,70,14),USE(?RunAnalBtn),DEFAULT
-         END
-         TAB('&Browse')
-           PROMPT('Table:'),AT(10,46),USE(?TableLabel)
-           LIST,AT(52,44,190,10),USE(?TablePick),DROP(12),FROM(TableQ), |
-                FORMAT('186L(2)@s64@')
-           BUTTON('&Load Table'),AT(252,42,70,14),USE(?LoadTableBtn)
-         END
-         TAB('&SQL')
-           PROMPT('SELECT:'),AT(10,40),USE(?SqlLabel)
-           TEXT,AT(52,38,500,40),USE(SqlText),VSCROLL, |
-                TIP('Type any read-only SELECT, then Run SQL')
-           BUTTON('R&un SQL'),AT(556,38,70,14),USE(?RunSqlBtn)
-         END
-       END
-       LIST,AT(4,104,632,272),USE(?Grid),FROM(ResultQ),VSCROLL,HVSCROLL, |
-            ALRT(MouseLeft2),COLOR(COLOR:White), |
-            FORMAT('200L(2)|M~Result~@s255@')
-       !--- display STRINGs declared AFTER the drop-lists (see header note) ---
-       STRING(@s255),AT(52,8,500,10),USE(DbPath),FONT(,8)
-       STRING(@s200),AT(4,382,390,12),USE(StatusMsg),FONT(,8)
-       STRING(ProgVersion),AT(400,382,236,12),FONT(,8),RIGHT
-     END
+AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),CENTER,SYSTEM,MAX,ICON(ICON:Application), |
+            FONT('Segoe UI',9),COLOR(0FFF0E0H),RESIZE
+        PROMPT('Database:'),AT(8,6),USE(?DbLabel)
+        BUTTON('&Open Database...'),AT(556,3,78,14),USE(?OpenBtn)
+        SHEET,AT(4,19,632,65),USE(?Sheet)
+            TAB('&Analyses'),USE(?TAB1)
+                PROMPT('A&nalysis:'),AT(10,37),USE(?AnalLabel)
+                LIST,AT(52,37,190,10),USE(?AnalysisPick),DROP(10),FROM(AnalysisQ),FORMAT('186L(2)@s40@')
+                PROMPT('Sy&mbol (Who/What calls):'),AT(10,55),USE(?ParamLabel)
+                ENTRY(@s60),AT(93,54,149,12),USE(ParamTxt),TIP('Exact symbol name - only used by the' & |
+                        ' Who/What calls analyses')
+                BUTTON('&Run Analysis'),AT(258,46,70,14),USE(?RunAnalBtn),DEFAULT
+            END
+            TAB('&Browse'),USE(?TAB2)
+                PROMPT('&Table:'),AT(10,41),USE(?TableLabel)
+                LIST,AT(52,39,190,10),USE(?TablePick),DROP(12),FROM(TableQ),FORMAT('186L(2)@s64@')
+                BUTTON('&Load Table'),AT(252,37,70,14),USE(?LoadTableBtn)
+            END
+            TAB('&SQL'),USE(?TAB3)
+                PROMPT('S&ELECT:'),AT(10,36),USE(?SqlLabel)
+                TEXT,AT(52,37,500,40),USE(SqlText),VSCROLL,FONT('Consolas',10),TIP('Type any read-on' & |
+                        'ly SELECT, then Run SQL')
+                BUTTON('&Run SQL'),AT(556,36,70,14),USE(?RunSqlBtn)
+            END
+        END
+        LIST,AT(4,104),FULL,USE(?Grid),HVSCROLL,COLOR(COLOR:White),FROM(ResultQ),FORMAT('200L(2)|M~R' & |
+                'esult~@s255@'),ALRT(MouseLeft2)
+        STRING(@s255),AT(43,6,505,10),USE(DbPath),FONT(,8)
+        STRING(@s200),AT(4,86,390,12),USE(StatusMsg),FONT(,8)
+        STRING(ProgVersion),AT(398,86,236,8),RIGHT,FONT(,8)
+    END
 
   CODE
-
-  Quote = CHR(39)
+  SYSTEM{PROP:PropVScroll}=1        !Thumb on LIST Proportional 7A58h
+  ! Quote = CHR(39)   now EQUATE('<39>')
 
   !--- seed the analysis drop-list (order must match the CASE in RunAnalysis) -
   FREE(AnalysisQ)
@@ -548,8 +547,9 @@ Cval   STRING(300)
   !--- rebuild grid columns + headers from the statement --------------------
   fmt = ''
   LOOP i = 1 TO nCols
-    ColName[i] = PtrToStr(sqlite3_column_name(hStmt, i-1))
-    fmt = CLIP(fmt) & '250L(2)|M~' & SafeHdr(ColName[i]) & '~@s255@'
+    ColName[i] = PtrToStr(sqlite3_column_name(hStmt, i-1))   
+!TODO set Column width based on Column Name    
+    fmt = CLIP(fmt) & '125L(2)|M~' & SafeHdr(ColName[i]) & '~@s255@'
   END
   CurCols = nCols;  SortCol = 0;  SortDesc = 0
   IF ~fmt THEN fmt = '250L(2)|M~(no columns)~@s255@'.
