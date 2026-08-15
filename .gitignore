@@ -17,6 +17,7 @@ ClaRUN.dll
 *.codegraph.db
 *.codegraph.db-shm
 *.codegraph.db-wal
+!/Samples/*.codegraph.db
 
 # Editor / OS cruft
 *~
