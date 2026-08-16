@@ -674,16 +674,9 @@ c    LONG
 ! Return the value of the pCol-th cell (1..16) of the current ResultQ record.
 !==============================================================================
 GetCell PROCEDURE(LONG pCol)
-
   CODE
-  EXECUTE pCol
-    RETURN(RQ:Cell1);  RETURN(RQ:Cell2);  RETURN(RQ:Cell3);  RETURN(RQ:Cell4)
-    RETURN(RQ:Cell5);  RETURN(RQ:Cell6);  RETURN(RQ:Cell7);  RETURN(RQ:Cell8)
-    RETURN(RQ:Cell9);  RETURN(RQ:Cell10); RETURN(RQ:Cell11); RETURN(RQ:Cell12)
-    RETURN(RQ:Cell13); RETURN(RQ:Cell14); RETURN(RQ:Cell15); RETURN(RQ:Cell16)
-  END
-  RETURN ''
-
+  RETURN WHAT(ResultQ,pCol)     !Carl: Replace EXECUTE pCol... RETURN 
+  !Could define array over: "RQ:CellArray STRING(300),DIM(16),OVER(ResultQ)" for simple indexed access to 16 Queue Fields
 !==============================================================================
 ! Open a source file at a given line in VS Code:  code -g "file:line".
 ! Tries the `code` CLI (PATH); if absent, falls back to the standard per-user
