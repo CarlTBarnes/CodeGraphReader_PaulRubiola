@@ -1,3 +1,4 @@
+!region CodeGraphReader Description, History and Comments
 !==============================================================================
 ! CodeGraphReader.clw
 !
@@ -68,9 +69,10 @@
 !            from gray to light blue.  
 !   v1.1.0   Carl Barnes work
 !            Reformat window some to allow LIST to be FULL so Resize shows more
-!            Columns size of 250 too wide. Set based on Col Name or use 125
+!            Columns size of 250 too wide. Set based on Col Name or use 125  
+!            Single Key Locator works and changes with Sort by using PROPLIST:Locator
 !==============================================================================
-
+!endregion
   PROGRAM
 
   PRAGMA('link(sqlite3.lib)')
@@ -172,21 +174,21 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),CENTER,SYSTEM,MAX,ICON(ICON:A
             FONT('Segoe UI',9),COLOR(0FFF0E0H),RESIZE
         PROMPT('Database:'),AT(8,6),USE(?DbLabel)
         BUTTON('&Open Database...'),AT(556,3,78,14),USE(?OpenBtn)
-        SHEET,AT(4,19,632,65),USE(?Sheet)
-            TAB('&Analyses'),USE(?TAB1)
+        SHEET,AT(4,19,632,65),USE(?Sheet1)
+            TAB(' &Analyses '),USE(?TAB1)
                 PROMPT('A&nalysis:'),AT(10,37),USE(?AnalLabel)
-                LIST,AT(52,37,190,10),USE(?AnalysisPick),DROP(10),FROM(AnalysisQ),FORMAT('186L(2)@s40@')
+                LIST,AT(52,37,190,12),USE(?AnalysisPick),DROP(10),FROM(AnalysisQ),FORMAT('186L(2)@s40@')
                 PROMPT('Sy&mbol (Who/What calls):'),AT(10,55),USE(?ParamLabel)
                 ENTRY(@s60),AT(93,54,149,12),USE(ParamTxt),TIP('Exact symbol name - only used by the' & |
                         ' Who/What calls analyses')
                 BUTTON('&Run Analysis'),AT(258,46,70,14),USE(?RunAnalBtn),DEFAULT
             END
-            TAB('&Browse'),USE(?TAB2)
+            TAB(' &Browse '),USE(?TAB2)
                 PROMPT('&Table:'),AT(10,41),USE(?TableLabel)
-                LIST,AT(52,39,190,10),USE(?TablePick),DROP(12),FROM(TableQ),FORMAT('186L(2)@s64@')
+                LIST,AT(52,39,190,12),USE(?TablePick),DROP(12),FROM(TableQ),FORMAT('186L(2)@s64@')
                 BUTTON('&Load Table'),AT(252,37,70,14),USE(?LoadTableBtn)
             END
-            TAB('&SQL'),USE(?TAB3)
+            TAB(' &SQL '),USE(?TAB3)
                 PROMPT('S&ELECT:'),AT(10,36),USE(?SqlLabel)
                 TEXT,AT(52,37,500,40),USE(SqlText),VSCROLL,FONT('Consolas',10),TIP('Type any read-on' & |
                         'ly SELECT, then Run SQL')
@@ -428,7 +430,8 @@ j  LONG
   END
   DISPLAY(?Grid)
   StatusMsg = 'Sorted by ' & CLIP(ColName[SortCol]) & |
-              CHOOSE(SortDesc + 1, ' (ascending)', ' (descending)')
+              CHOOSE(SortDesc + 1, ' (ascending)', ' (descending)') 
+  ?Grid{PROPLIST:Locator,SortCol}=TRUE       !Sets Column to be the Step Locator so single letter locates
   DISPLAY
 
 !==============================================================================
@@ -599,7 +602,8 @@ ColPicture  PSTRING(16)     !Carl: Adjust from default @s255@ ... none is needed
   IF nCols * 250 > ?Grid{PROP:Width}
     StatusMsg = CLIP(StatusMsg) & '   ->  scroll right for all ' & nCols & ' columns'
   END
-  DISPLAY
+  DISPLAY 
+  ?Grid{PROPLIST:Locator,1}=TRUE       !Assume Column 1 is the Sorted one. Not always correct, could improve
   RETURN nRows
 
 !==============================================================================
