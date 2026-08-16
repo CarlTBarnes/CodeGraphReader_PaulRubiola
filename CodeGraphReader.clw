@@ -646,25 +646,22 @@ ch   BYTE
 ! Guards the LIST FORMAT against stray ~ | @ and against an over-long name.
 !==============================================================================
 SafeHdr PROCEDURE(pIn)
-
 Buf  STRING(64)                         ! fixed buffer - Buf[1..32] always in range
 Res  STRING(32)
-i    LONG
-c    LONG
-
+b    LONG
+r    LONG
   CODE
   Buf = pIn
   Res = ''
-  LOOP i = 1 TO 32
-    c = VAL(Buf[i])
-    CASE c
-    OF 48 TO 57                         ! 0-9
-    OROF 65 TO 90                       ! A-Z
-    OROF 97 TO 122                      ! a-z
-    OROF 95                             ! _
-      Res[i] = Buf[i]
-    ELSE
-      BREAK
+  LOOP b = 1 TO LEN(CLIP(Buf))
+    CASE Buf[b]
+    OF   '0' TO '9'                     ! 0-9
+    OROF 'A' TO 'Z'                     ! A-Z
+    OROF 'a' TO 'z'                     ! a-z
+    OROF '_'                            ! _  
+      r += 1
+      Res[r] = Buf[b]
+      IF r=Size(Res) THEN BREAK.
     END
   END
   IF ~CLIP(Res) THEN RETURN 'col'.
