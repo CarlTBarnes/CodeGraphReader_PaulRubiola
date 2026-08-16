@@ -68,7 +68,7 @@
 !            from gray to light blue.  
 !   v1.1.0   Carl Barnes work
 !            Reformat window some to allow LIST to be FULL so Resize shows more
-!            Columns size 125 was 250 too wide
+!            Columns size of 250 too wide. Set based on Col Name or use 125
 !==============================================================================
 
   PROGRAM
@@ -78,6 +78,10 @@
   INCLUDE('EQUATES.CLW'),ONCE
   INCLUDE('KEYCODES.CLW'),ONCE
 
+!  INCLUDE('CbWndPreview.INC'),ONCE   !Get here--> https://github.com/CarlTBarnes/WindowPreview
+!CbWndPrvCls     CBWndPreviewClass    !Help me redesgn window when running
+!_CbWndPrvIncluded_      EQUATE(1)    !Comment out these 3 lines to build without
+  
   MAP
 OpenDatabase        PROCEDURE(STRING pPath),LONG,PROC
 RunQuery            PROCEDURE(STRING pSql),LONG,PROC
@@ -111,7 +115,7 @@ SQLITE_OPEN_READONLY EQUATE(1)
 
 MaxCol               EQUATE(16)        ! widest result the grid will show
 MaxRows              EQUATE(50000)     ! safety cap on rows fetched
-ProgVersion          EQUATE('CodeGraphReader  v1.0.4  -  2026-08-12')
+ProgVersion          EQUATE('CodeGraphReader  v1.1.0  -  2026-08-16')
 
 !------------------------------------------------------------------------------
 ! Handles and working data
@@ -202,18 +206,22 @@ AppWindow WINDOW('CodeGraph Reader'),AT(,,640,400),CENTER,SYSTEM,MAX,ICON(ICON:A
 
   !--- seed the analysis drop-list (order must match the CASE in RunAnalysis) -
   FREE(AnalysisQ)
-  AQ:AName = 'All procedures & functions'; ADD(AnalysisQ)
-  AQ:AName = 'All classes';                ADD(AnalysisQ)
-  AQ:AName = 'Class hierarchy';            ADD(AnalysisQ)
-  AQ:AName = 'Orphaned procedures';        ADD(AnalysisQ)
-  AQ:AName = 'Who calls (symbol)';         ADD(AnalysisQ)
-  AQ:AName = 'What (symbol) calls';        ADD(AnalysisQ)
-  AQ:AName = 'All relationships (readable)'; ADD(AnalysisQ)
+  AQ:AName = 'All Procedures & Functions'; ADD(AnalysisQ)
+  AQ:AName = 'All Classes';                ADD(AnalysisQ)
+  AQ:AName = 'Class Hierarchy';            ADD(AnalysisQ)
+  AQ:AName = 'Orphaned Procedures';        ADD(AnalysisQ)
+  AQ:AName = 'Who Calls (Symbol)';         ADD(AnalysisQ)
+  AQ:AName = 'What (Symbol) Calls';        ADD(AnalysisQ)
+  AQ:AName = 'All Relationships (Readable)'; ADD(AnalysisQ)
 
   SqlText = 'SELECT name, type, file_path, line_number' & |
             '<13,10>FROM symbols<13,10>WHERE type = ''procedure''<13,10>LIMIT 100'
 
-  OPEN(AppWindow)
+  OPEN(AppWindow) 
+  COMPILE('!*** WndPrv ***',_CbWndPrvIncluded_)
+    CbWndPrvCls.Init()                  !Carl: Adds Button on Upper-Left that is Flat Blank to access Wnd Prv Class that is like Developer Mode in Browser
+  !*** WndPrv *** 
+  ?Grid{PROP:Vcr}=TRUE                  !Carl: Put VCR Paging buttons on HScroll w/o the locate "?"
   ?AnalysisPick{PROP:Selected} = 1
 
   !--- convenience: auto-open a .codegraph.db sitting in the working folder ----
@@ -305,21 +313,21 @@ DirQ   QUEUE(FILE:Queue),PRE(DQ)
 RunAnalysis ROUTINE
   DATA
 sql   STRING(1000)
-  CODE
+  CODE 
   CASE CHOICE(?AnalysisPick)
-  OF 1
+  OF 1    ! All Procedures & Functions
     sql = 'SELECT name, type, file_path, line_number FROM symbols ' & |
           'WHERE type IN (' & Quote & 'procedure' & Quote & ',' & |
           Quote & 'function' & Quote & ') ORDER BY name'
-  OF 2
+  OF 2    ! All Classes
     sql = 'SELECT name, parent_name, file_path, line_number FROM symbols ' & |
           'WHERE type = ' & Quote & 'class' & Quote & ' ORDER BY name'
-  OF 3
+  OF 3    ! Class Hierarchy
     sql = 'SELECT name, parent_name, file_path FROM symbols ' & |
           'WHERE type = ' & Quote & 'class' & Quote & |
           ' AND parent_name IS NOT NULL AND parent_name <> ' & Quote & Quote & |
           ' ORDER BY parent_name, name'
-  OF 4
+  OF 4    ! Orphaned Procedures
     sql = 'SELECT name, file_path, line_number FROM symbols ' & |
           'WHERE type IN (' & Quote & 'procedure' & Quote & ',' & |
           Quote & 'function' & Quote & ') AND name NOT LIKE ' & |
@@ -327,7 +335,7 @@ sql   STRING(1000)
           ' AND id NOT IN (SELECT to_id FROM relationships ' & |
           'WHERE type IN (' & Quote & 'calls' & Quote & ',' & |
           Quote & 'do' & Quote & ') AND to_id IS NOT NULL) ORDER BY file_path, line_number'
-  OF 5
+  OF 5   ! Who Calls (Symbol)
     IF ~CLIP(ParamTxt)
       MESSAGE('Type a symbol name for the Who-calls analysis.', 'Analyses', ICON:Asterisk)
       EXIT
@@ -337,7 +345,7 @@ sql   STRING(1000)
           Quote & 'calls' & Quote & ' AND r.to_id IN ' & |
           '(SELECT id FROM symbols WHERE name = ' & Quote & CLIP(ParamTxt) & |
           Quote & ') ORDER BY s.name'
-  OF 6
+  OF 6    ! What (Symbol) Calls
     IF ~CLIP(ParamTxt)
       MESSAGE('Type a symbol name for the What-calls analysis.', 'Analyses', ICON:Asterisk)
       EXIT
@@ -347,7 +355,7 @@ sql   STRING(1000)
           Quote & 'calls' & Quote & ' AND r.from_id IN ' & |
           '(SELECT id FROM symbols WHERE name = ' & Quote & CLIP(ParamTxt) & |
           Quote & ') ORDER BY s.name'
-  OF 7
+  OF 7    ! All Relationships (Readable)
     sql = 'SELECT sf.name AS from_name, r.type, st.name AS to_name, ' & |
           'r.file_path, r.line_number FROM relationships r ' & |
           'JOIN symbols sf ON r.from_id = sf.id ' & |
@@ -502,7 +510,8 @@ i      LONG
 nRows  LONG
 fmt    STRING(2000)
 Cval   STRING(300)
-
+ColWidth    USHORT          !Carl: Adjust from default 125 based on Column Name
+ColPicture  PSTRING(16)     !Carl: Adjust from default @s255@ ... none is needed for unlimited width
   CODE
   IF ~hDb
     StatusMsg = 'No database open.'
@@ -531,8 +540,27 @@ Cval   STRING(300)
   fmt = ''
   LOOP i = 1 TO nCols
     ColName[i] = PtrToStr(sqlite3_column_name(hStmt, i-1))   
-!TODO set Column width based on Column Name    
-    fmt = CLIP(fmt) & '125L(2)|M~' & SafeHdr(ColName[i]) & '~@s255@'
+    ColWidth   = 125        !Was all 250 but that's too wide 
+    ColPicture = '@s255@'   !Was all @s255, do not need any @pic for unlimited text
+    CASE lower(ColName[i])
+    OF 'id'             ; ColWidth=24
+    OF 'type'           ; ColWidth=40
+    OF 'line_number'    ; ColWidth=46
+    OF 'project_id'     ; ColWidth=38
+    OF 'depends_on_id'  ; ColWidth=54
+    OF 'return_type'    ; ColWidth=46
+    OF 'member_of'      ; ColWidth=88
+    OF 'scope'          ; ColWidth=40
+    OF 'source_preview'                 ; ColPicture=''  !Can be very long text ?
+    OF 'value'                          ; ColPicture=''  !Can be very long text ?
+    OF 'guid'           ; ColWidth=130
+    OF 'output_type'    ; ColWidth=44
+    OF 'from_id'        ; ColWidth=33
+    OF 'to_id'          ; ColWidth=33    !same as "from_id" but could be =25
+    OF 'seq'            ; ColWidth=24  
+    END
+!   fmt = CLIP(fmt) & '250L(2)|M~' & SafeHdr(ColName[i]) & '~@s255@'    !Carl: Original all 250 wide and @s255@
+    fmt = CLIP(fmt) & ColWidth & 'L(2)|M~' & SafeHdr(ColName[i]) &'~'& ColPicture
   END
   CurCols = nCols;  SortCol = 0;  SortDesc = 0
   IF ~fmt THEN fmt = '250L(2)|M~(no columns)~@s255@'.
@@ -581,9 +609,9 @@ Cval   STRING(300)
 
   DISPLAY(?Grid)
   IF nRows >= MaxRows
-    StatusMsg = 'Showing first ' & nRows & ' row(s) (capped at ' & MaxRows & '), ' & nCols & ' col(s).'
+    StatusMsg = 'Showing first ' & nRows & ' rows (capped at ' & MaxRows & '), ' & nCols & ' cols.'
   ELSE
-    StatusMsg = nRows & ' row(s), ' & nCols & ' col(s).'
+    StatusMsg = nRows & ' rows, ' & nCols & ' cols.'
   END
   IF nCols * 250 > ?Grid{PROP:Width}
     StatusMsg = CLIP(StatusMsg) & '   ->  scroll right for all ' & nCols & ' columns'
