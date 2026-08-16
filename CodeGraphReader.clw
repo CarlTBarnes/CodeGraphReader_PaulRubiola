@@ -509,7 +509,7 @@ nCols  LONG
 i      LONG
 nRows  LONG
 fmt    STRING(2000)
-Cval   STRING(300)
+RQ:Cell_i   ANY             !Carl: for use with WHAT(Q,i) ... was: Cval STRING(300)
 ColWidth    USHORT          !Carl: Adjust from default 125 based on Column Name
 ColPicture  PSTRING(16)     !Carl: Adjust from default @s255@ ... none is needed for unlimited width
   CODE
@@ -579,25 +579,8 @@ ColPicture  PSTRING(16)     !Carl: Adjust from default @s255@ ... none is needed
     IF sqlite3_step(hStmt) <> SQLITE_ROW THEN BREAK.
     CLEAR(ResultQ)
     LOOP i = 1 TO nCols
-      Cval = PtrToStr(sqlite3_column_text(hStmt, i-1))
-      EXECUTE i
-        RQ:Cell1  = Cval
-        RQ:Cell2  = Cval
-        RQ:Cell3  = Cval
-        RQ:Cell4  = Cval
-        RQ:Cell5  = Cval
-        RQ:Cell6  = Cval
-        RQ:Cell7  = Cval
-        RQ:Cell8  = Cval
-        RQ:Cell9  = Cval
-        RQ:Cell10 = Cval
-        RQ:Cell11 = Cval
-        RQ:Cell12 = Cval
-        RQ:Cell13 = Cval
-        RQ:Cell14 = Cval
-        RQ:Cell15 = Cval
-        RQ:Cell16 = Cval
-      END
+      RQ:Cell_i &= WHAT(ResultQ,i)      !Carl: Replace EXECUTE i ; RQ:Cell1  = Cval ; etc
+      RQ:Cell_i = PtrToStr(sqlite3_column_text(hStmt, i-1)) 
     END
     ADD(ResultQ)
     nRows += 1
